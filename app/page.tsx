@@ -1,49 +1,60 @@
-'use client'; // <-- MUST be the very first line!
+"use client";
 
-import { useState } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
+import { useState, useRef } from "react";
+import { QRCodeCanvas } from "qrcode.react";
 
 export default function Home() {
-  const [text, setText] = useState('https://example.com');
-  const [size, setSize] = useState(200);
-  const [showQR, setShowQR] = useState(false);
+  const [text, setText] = useState("");
+  const qrRef = useRef<HTMLCanvasElement>(null);
+
+  const downloadQRCode = () => {
+    const canvas = qrRef.current;
+    if (!canvas) return;
+
+    const pngUrl = canvas
+      .toDataURL("image/png")
+      .replace("image/png", "image/octet-stream");
+
+    const downloadLink = document.createElement("a");
+    downloadLink.href = pngUrl;
+    downloadLink.download = "qr-code.png";
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+  };
 
   return (
-    <main className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-6">
-      <h1 className="text-3xl font-bold mb-6">QR Code Generator</h1>
+    <main className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
+      <h1 className="text-3xl font-bold mb-4">QR Code Generator</h1>
 
-      <div className="bg-white shadow-md rounded-xl p-6 max-w-md w-full space-y-4">
-        <input
-          type="text"
-          placeholder="Enter text or URL"
-          className="w-full p-2 border rounded"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-        />
+      <input
+        type="text"
+        placeholder="Enter text or URL"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        className="w-full max-w-md px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-blue-400 mb-6"
+      />
 
-        <div className="flex items-center gap-2">
-          <label className="text-sm">Size:</label>
-          <input
-            type="number"
-            className="w-24 p-2 border rounded"
-            value={size}
-            onChange={(e) => setSize(Number(e.target.value))}
+      {text && (
+        <div className="flex flex-col items-center">
+          <QRCodeCanvas
+            value={text}
+            size={200}
+            bgColor="#ffffff"
+            fgColor="#000000"
+            level="H"
+            includeMargin
+            ref={qrRef}
           />
+
+          <button
+            onClick={downloadQRCode}
+            className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+          >
+            Download QR Code
+          </button>
         </div>
-
-        <button
-          onClick={() => setShowQR(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
-        >
-          Generate QR
-        </button>
-
-        {showQR && (
-          <div className="flex justify-center pt-4">
-            <QRCodeSVG value={text} size={size} />
-          </div>
-        )}
-      </div>
+      )}
     </main>
   );
 }
