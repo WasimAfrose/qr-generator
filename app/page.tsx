@@ -1,102 +1,34 @@
 "use client";
 
-import { useState, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { QRCodeCanvas } from "qrcode.react";
-import { Sun, Moon, ImageIcon, Link, Download, UploadCloud } from "lucide-react";
 
 export default function Home() {
-  const [imageURLs, setImageURLs] = useState<string[]>([]);
-  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
-  const [galleryURL, setGalleryURL] = useState<string>("");
-  const [customURL, setCustomURL] = useState("");
-  const [activeTab, setActiveTab] = useState<"upload" | "url">("upload");
-  const [darkMode, setDarkMode] = useState(false);
-  const [uploading, setUploading] = useState(false);
+  const [inputUrl, setInputUrl] = useState("");
+  const [qrValue, setQrValue] = useState("");
+  const [isDark, setIsDark] = useState(false);
   const qrRef = useRef<HTMLCanvasElement>(null);
 
-  const CLOUD_NAME = "bae2g";
-  const UPLOAD_PRESET = "qr_code";
-
-  const generateGalleryHTML = (urls: string[]) => `
-    <html>
-      <head><title>Gallery</title></head>
-      <body style="font-family:sans-serif;padding:20px;text-align:center;background:#fefefe;">
-        <h1 style="color:#333;">Uploaded Images</h1>
-        ${urls
-          .map(
-            (url) =>
-              `<img src="${url}" style="max-width:90%;margin-bottom:20px;box-shadow:0 2px 8px rgba(0,0,0,0.1);border-radius:8px;" />`
-          )
-          .join("")}
-      </body>
-    </html>
-  `;
-
-  const uploadHTMLGallery = async (urls: string[]) => {
-    const htmlContent = generateGalleryHTML(urls);
-    const blob = new Blob([htmlContent], { type: "text/html" });
-    const formData = new FormData();
-    formData.append("file", blob, "gallery.html");
-    formData.append("upload_preset", UPLOAD_PRESET);
-    formData.append("resource_type", "raw");
-
-    try {
-      const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/raw/upload`, {
-        method: "POST",
-        body: formData,
-      });
-      const data = await res.json();
-      if (data.secure_url) {
-        setGalleryURL(data.secure_url);
-      }
-    } catch (err) {
-      console.error("Gallery upload failed:", err);
+  // Toggle dark mode class on body
+  useEffect(() => {
+    if (isDark) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
     }
-  };
+  }, [isDark]);
 
-  const handleFilesChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
-    if (files.length === 0) return;
-
-    setUploading(true);
-    setUploadedFiles(files);
-    setImageURLs([]);
-    setGalleryURL("");
-
-    const uploaded: string[] = [];
-
-    for (const file of files) {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("upload_preset", UPLOAD_PRESET);
-
-      try {
-        const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
-          method: "POST",
-          body: formData,
-        });
-
-        const data = await res.json();
-        if (data.secure_url) {
-          uploaded.push(data.secure_url);
-        }
-      } catch (err) {
-        console.error("Image upload error:", err);
-      }
+  // Generate QR code from URL
+  function generateQR() {
+    if (inputUrl.trim()) {
+      setQrValue(inputUrl.trim());
     }
+  }
 
-    setImageURLs(uploaded);
-    setUploading(false);
-
-    if (uploaded.length > 0) {
-      await uploadHTMLGallery(uploaded);
-    }
-  };
-
-  const downloadQRCode = () => {
+  // Download QR code as PNG
+  function downloadQR() {
+    if (!qrRef.current) return;
     const canvas = qrRef.current;
-    if (!canvas) return;
-
     const pngUrl = canvas.toDataURL("image/png").replace("image/png", "image/octet-stream");
     const downloadLink = document.createElement("a");
     downloadLink.href = pngUrl;
@@ -104,147 +36,131 @@ export default function Home() {
     document.body.appendChild(downloadLink);
     downloadLink.click();
     document.body.removeChild(downloadLink);
-  };
-
-  const qrValue = activeTab === "upload" ? galleryURL : customURL;
+  }
 
   return (
     <main
-      className={`min-h-screen flex items-center justify-center transition-colors duration-500 ${
-        darkMode
-          ? "bg-gradient-to-tr from-gray-900 via-gray-800 to-gray-900 text-gray-200"
-          : "bg-gradient-to-tr from-indigo-200 via-purple-200 to-pink-200 text-gray-900"
-      }`}
+      className={`min-h-screen flex flex-col items-center justify-center px-6 py-12 transition-colors duration-500
+      bg-gradient-to-tr from-indigo-100 via-purple-100 to-pink-100
+      dark:from-gray-900 dark:via-gray-800 dark:to-gray-700`}
     >
       <div
-        className={`max-w-xl w-full
-          bg-white bg-opacity-30 dark:bg-gray-900 dark:bg-opacity-30
-          backdrop-blur-md
-          border border-white border-opacity-20 dark:border-gray-700 dark:border-opacity-40
-          rounded-3xl shadow-lg
-          p-8 flex flex-col items-center gap-8
-          `}
+        className="relative max-w-lg w-full bg-white/30 dark:bg-gray-900/30
+        backdrop-blur-xl rounded-3xl p-8 shadow-xl flex flex-col items-center"
       >
-        {/* Top Bar: Dark/Light toggle */}
-        <div className="self-end">
-          <button
-            onClick={() => setDarkMode(!darkMode)}
-            aria-label="Toggle dark/light mode"
-            title="Toggle dark/light mode"
-            className={`p-2 rounded-full hover:scale-110 transform transition ${
-              darkMode
-                ? "bg-gray-700"
-                : "bg-gray-300"
-            }`}
-          >
-            {darkMode ? (
-              <Sun className="text-yellow-400 w-6 h-6" />
-            ) : (
-              <Moon className="text-gray-700 w-6 h-6" />
-            )}
-          </button>
-        </div>
-
-        {/* Tab Buttons: Upload / URL */}
-        <div className="flex gap-8 justify-center w-full">
-          <button
-            onClick={() => setActiveTab("upload")}
-            aria-label="Upload images tab"
-            title="Upload images"
-            className={`p-4 rounded-2xl transition-transform transform hover:scale-110 ${
-              activeTab === "upload"
-                ? "bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg"
-                : "bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
-            }`}
-          >
-            <UploadCloud size={28} />
-          </button>
-
-          <button
-            onClick={() => setActiveTab("url")}
-            aria-label="Custom URL tab"
-            title="Enter custom URL"
-            className={`p-4 rounded-2xl transition-transform transform hover:scale-110 ${
-              activeTab === "url"
-                ? "bg-gradient-to-r from-pink-500 to-red-600 text-white shadow-lg"
-                : "bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
-            }`}
-          >
-            <Link size={28} />
-          </button>
-        </div>
-
-        {/* Content based on tab */}
-        {activeTab === "upload" && (
-          <div className="flex flex-col items-center gap-6 w-full">
-            <label
-              htmlFor="file-upload"
-              aria-label="Choose images to upload"
-              title="Choose images"
-              className="cursor-pointer rounded-full bg-gradient-to-r from-indigo-400 to-purple-500 p-5 hover:scale-105 transition-transform flex justify-center items-center shadow-lg"
+        {/* Dark/Light mode toggle */}
+        <button
+          onClick={() => setIsDark(!isDark)}
+          aria-label="Toggle dark mode"
+          title="Toggle dark mode"
+          className="absolute top-5 right-5 bg-white/70 dark:bg-gray-900/70 backdrop-blur-md p-3 rounded-full shadow-md hover:bg-indigo-600 hover:text-white transition z-10"
+        >
+          {isDark ? (
+            // Sun icon for light mode
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-6 w-6"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
             >
-              <input
-                id="file-upload"
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={handleFilesChange}
-                className="hidden"
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 3v1m0 16v1m8.485-9H21m-16 0H3m13.657 6.657l.707.707m-9.9-9.9l.707.707m12.02 0l-.707.707m-9.9 9.9l-.707.707M12 7a5 5 0 100 10 5 5 0 000-10z"
               />
-              <ImageIcon size={32} className="text-white" />
-            </label>
-
-            {uploading && (
-              <p className="animate-pulse text-indigo-600 dark:text-indigo-400">Uploading...</p>
-            )}
-
-            {imageURLs.length > 0 && (
-              <div className="grid grid-cols-3 gap-3 w-full max-h-48 overflow-y-auto rounded-xl p-1">
-                {imageURLs.map((url, idx) => (
-                  <img
-                    key={idx}
-                    src={url}
-                    alt={`Uploaded preview ${idx + 1}`}
-                    className="rounded-xl shadow-lg object-cover w-full h-24"
-                    loading="lazy"
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === "url" && (
-          <input
-            type="text"
-            value={customURL}
-            onChange={(e) => setCustomURL(e.target.value)}
-            placeholder="Paste URL here"
-            aria-label="Paste URL here"
-            className="w-full px-5 py-3 rounded-2xl border-2 border-gray-300 dark:border-gray-700 bg-transparent placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-4 focus:ring-indigo-400 dark:focus:ring-indigo-600 transition"
-          />
-        )}
-
-        {/* QR Code & Download */}
-        {qrValue && (
-          <div className="flex flex-col items-center gap-6">
-            <QRCodeCanvas
-              value={qrValue}
-              size={220}
-              bgColor={darkMode ? "#1e293b" : "#fefefe"}
-              fgColor={darkMode ? "#fefefe" : "#1e293b"}
-              level="H"
-              includeMargin
-              ref={qrRef}
-              className="rounded-2xl shadow-2xl"
-            />
-            <button
-              onClick={downloadQRCode}
-              aria-label="Download QR code"
-              title="Download QR code"
-              className="p-4 rounded-full bg-gradient-to-r from-green-400 to-teal-500 text-white shadow-lg hover:scale-110 transition-transform flex items-center justify-center"
+            </svg>
+          ) : (
+            // Moon icon for dark mode
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-6 w-6"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
             >
-              <Download size={28} />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"
+              />
+            </svg>
+          )}
+        </button>
+
+        {/* Title */}
+        <h1 className="text-3xl font-bold mb-8 text-gray-900 dark:text-gray-100 select-none">
+          QR Code Generator
+        </h1>
+
+        {/* Input and generate */}
+        <div className="w-full relative mb-8">
+          <input
+            type="url"
+            placeholder="Paste URL here"
+            value={inputUrl}
+            onChange={(e) => setInputUrl(e.target.value)}
+            className="w-full rounded-full py-4 px-5 pr-20 text-gray-900 dark:text-gray-100 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-4 focus:ring-indigo-400 dark:focus:ring-indigo-600 transition"
+            spellCheck={false}
+          />
+          <button
+            onClick={generateQR}
+            disabled={!inputUrl.trim()}
+            aria-label="Generate QR Code"
+            title="Generate QR Code"
+            className="absolute right-3 top-1/2 -translate-y-1/2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white p-3 rounded-full shadow-md transition flex items-center justify-center"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-6 w-6"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+            </svg>
+          </button>
+        </div>
+
+        {/* QR code display */}
+        {qrValue && (
+          <div className="flex flex-col items-center space-y-6">
+            <QRCodeCanvas
+              ref={qrRef}
+              value={qrValue}
+              size={240}
+              bgColor="transparent"
+              fgColor={isDark ? "#e0e7ff" : "#3730a3"}
+              level="H"
+              includeMargin={true}
+              className="rounded-3xl shadow-lg"
+            />
+
+            <button
+              onClick={downloadQR}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-full shadow-lg transition"
+              aria-label="Download QR Code"
+              title="Download QR Code"
+            >
+              {/* Download icon */}
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="inline-block h-6 w-6 mr-2"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2m-4-4l-4 4m0 0l-4-4m4 4V4"
+                />
+              </svg>
+              Download
             </button>
           </div>
         )}
